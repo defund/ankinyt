@@ -1,6 +1,9 @@
+from datetime import date, datetime, timedelta
 import genanki
 import json
-import os
+import requests
+import sys
+from tqdm import tqdm
 
 MODEL_CSS = '''\
 .card {
@@ -62,11 +65,27 @@ def add_notes(deck, data):
 			'',
 		]))
 
+def daterange(start, end):
+	days = int((end - start).days)
+	for i in range(days + 1):
+		yield start + timedelta(i)
+
 if __name__ == '__main__':
+	BASE_URL = 'https://www.nytimes.com/svc/crosswords/v6/puzzle/daily/{}'
+	with open('cookie.txt') as f:
+		cookie = f.read().strip()
+
+	start = datetime.strptime(sys.argv[1], '%Y-%m-%d')
+	end = datetime.strptime(sys.argv[2], '%Y-%m-%d')
+
 	deck = genanki.Deck(1337, 'Crosswordese')
-	for filename in os.listdir('dumps'):
-		if filename.endswith('json'):
-			with open(f'dumps/{filename}') as f:
-				data = parse_nyt(json.load(f))
-				add_notes(deck, data)
+
+	for d in tqdm(daterange(start, end)):
+		filename = f"{d.strftime('%Y-%m-%d')}.json"
+		r = requests.get(BASE_URL.format(filename), headers={
+				'Cookie': cookie,
+			})
+		data = parse_nyt(json.loads(r.text))
+		add_notes(deck, data)
+
 	genanki.Package(deck).write_to_file('crosswordese.apkg')
